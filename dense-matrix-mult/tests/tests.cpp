@@ -68,14 +68,10 @@ struct TestMemory {
     TestMemory(size_t size) : matrixSize(size), totalSize(size * size) {
         TestC.resize(totalSize, 0.0);
         ExpectedC.resize(totalSize, 0.0);
-        // A.resize(totalSize, 0.0);
-        // B.resize(totalSize, 0.0);
     }
 
     std::vector<float> A{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
     std::vector<float> B{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-    // std::vector<float> A{1, 2, 1, 0, 2, 0, 1, 2, 0, 1, 2, 1, 1, 0, 0, 1};
-    // std::vector<float> B{0, 1, 0, 1, 1, 0, 2, 0, 3, 3, 2, 2, 0, 3, 0, 1};
     std::vector<float> TestC{};
     std::vector<float> ExpectedC{};
 
