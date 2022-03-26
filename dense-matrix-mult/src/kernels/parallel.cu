@@ -45,11 +45,9 @@ __global__ void kernel_matrixMultTiled(const float *__restrict__ devA,
     int ty = threadIdx.y; 
     int bx = blockIdx.x;
     int by = blockIdx.y; 
-    int bsx = blockDim.x;
-    int bsy = blockDim.y;
 
-    int col = bx * bsx + tx;
-    int row = by * bsy + ty;
+    int col = bx * blockDim.x + tx;
+    int row = by * blockDim.y + ty;
 
     // col-major format
     __shared__ float sharedA[TILE_SIZE][TILE_SIZE];
