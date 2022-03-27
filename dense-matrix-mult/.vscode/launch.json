@@ -9,7 +9,7 @@
             "type": "cuda-gdb",
             "request": "launch",
             "program": "${workspaceFolder}/build/tests",
-            "args": "--gtest_filter=MatMult.GPU_TILED"
+            "args": "--gtest_filter=MatMult.GPU_COALESCED"
         }
     ]
 }

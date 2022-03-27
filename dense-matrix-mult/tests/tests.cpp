@@ -167,8 +167,8 @@ TEST_F(MatMult, GPU_TILED) {
 
 
 TEST_F(MatMult, GPU_COALESCED) {
-    config.tileSize = 4;
-    config.matrixSize = test::local::size;
+    config.tileSize = 2;
+    config.matrixSize = 4;
     config.kernelType = KernelType::KERNEL_COALESCED;
     TestMemory memory(config.matrixSize);
 

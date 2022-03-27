@@ -112,13 +112,47 @@ template <int TILE_SIZE>
 __global__ void kernel_matrixMultCoalesced(const float *__restrict__ devA,
                                            const float *__restrict__ devB, float *__restrict__ devC,
                                            const size_t size) {
-  // TODO: complete function
+    int tx = threadIdx.x;
+    int ty = threadIdx.y; 
+    int bx = blockIdx.x;
+    int by = blockIdx.y; 
+
+    int col = bx * blockDim.x + tx;
+    int row = by * blockDim.y + ty;
+
+    // col-major format
+    __shared__ float sharedA[TILE_SIZE][TILE_SIZE];
+    __shared__ float sharedB[TILE_SIZE][TILE_SIZE];
+
+    if ((col < size) && (row < size)) {
+
+        float dotProduct = 0;
+
+        for (int bid = 0; bid < size / TILE_SIZE; bid++) {
+            
+            sharedA[ty][tx] = devA[bid * size * TILE_SIZE + ty * size + by * TILE_SIZE + tx];
+            sharedB[ty][tx] = devB[bx * size * TILE_SIZE + ty * size + bid * TILE_SIZE + tx];
+            __syncthreads();
+
+            for (int i = 0; i < TILE_SIZE; i++) {
+                dotProduct += sharedA[i][ty] * sharedB[tx][i];
+            }
+            __syncthreads();
+        }
+        devC[col * size + row] += dotProduct;
+
+    }
 }
 
 
 void executeMatrixMultCoalesced(dim3 dimBlock, dim3 dimGrid, float *Ad, float *Bd, float *Cd,
                                 const Configuration &config) {
     switch (config.tileSize) {
+        case 2:
+            for (int i = 0; i < config.numRepeats; ++i) {
+                kernel_matrixMultCoalesced<2><<<dimGrid, dimBlock>>>(Ad, Bd, Cd, config.matrixSize);
+            }
+            break;        
         case 4:
             for (int i = 0; i < config.numRepeats; ++i) {
                 kernel_matrixMultCoalesced<4><<<dimGrid, dimBlock>>>(Ad, Bd, Cd, config.matrixSize);
