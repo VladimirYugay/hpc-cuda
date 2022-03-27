@@ -204,13 +204,63 @@ template <int TILE_SIZE>
 __global__ void kernel_matrixMultOverlapped(const float *__restrict__ devA,
                                             const float *__restrict__ devB,
                                             float *__restrict__ devC, const size_t size) {
-    // TODO: complete function
+    int tx = threadIdx.x;
+    int ty = threadIdx.y; 
+    int bx = blockIdx.x;
+    int by = blockIdx.y; 
+
+    int col = bx * blockDim.x + tx;
+    int row = by * blockDim.y + ty;
+
+    // col-major format
+    __shared__ float sharedA[TILE_SIZE][TILE_SIZE];
+    __shared__ float sharedB[TILE_SIZE][TILE_SIZE];
+
+    if ((col < size) && (row < size)) {
+
+        float dotProduct = 0;
+        float regA = 0.f, regB = 0.f;
+        regA = devA[ty * size + by * TILE_SIZE + tx];
+        regB = devB[bx * size * TILE_SIZE + ty * size + tx];
+
+        for (int bid = 0; bid < size / TILE_SIZE - 1; bid++) {
+            
+            sharedA[ty][tx] = regA;
+            sharedB[ty][tx] = regB;
+            __syncthreads();
+
+            regA = devA[(bid + 1) * size * TILE_SIZE + ty * size + by * TILE_SIZE + tx];
+            regB = devB[bx * size * TILE_SIZE + ty * size + (bid + 1) * TILE_SIZE + tx];
+            for (int i = 0; i < TILE_SIZE; i++) {
+                dotProduct += sharedA[i][ty] * sharedB[tx][i];
+            }
+            __syncthreads();
+        }
+
+        int bid = size / TILE_SIZE - 1;
+        sharedA[ty][tx] = devA[bid * size * TILE_SIZE + ty * size + by * TILE_SIZE + tx];
+        sharedB[ty][tx] = devB[bx * size * TILE_SIZE + ty * size + bid * TILE_SIZE + tx];
+        __syncthreads();
+        
+        for (int i = 0; i < TILE_SIZE; i++) {
+            dotProduct += sharedA[i][ty] * sharedB[tx][i];
+        }        
+
+        devC[col * size + row] += dotProduct;
+
+    }
 }
 
 
 void executeMatrixMultOverlapped(dim3 dimBlock, dim3 dimGrid, float *Ad, float *Bd, float *Cd,
                                  const Configuration &config) {
     switch (config.tileSize) {
+        case 2:
+            for (int i = 0; i < config.numRepeats; ++i) {
+                kernel_matrixMultOverlapped<2>
+                    <<<dimGrid, dimBlock>>>(Ad, Bd, Cd, config.matrixSize);
+            }
+            break;        
         case 4:
             for (int i = 0; i < config.numRepeats; ++i) {
                 kernel_matrixMultOverlapped<4>

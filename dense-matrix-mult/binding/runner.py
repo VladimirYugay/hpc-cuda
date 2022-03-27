@@ -79,7 +79,7 @@ if with_cublas:
 
 tiles = [2**i for i in range(2, 6)]
 # kernels = [krnl.KERNEL_GLOBAL, krnl.KERNEL_TILED, krnl.KERNEL_COALESCED, krnl.KERNEL_COALESCED_DYM, krnl.KERNEL_OVERLAPPED]
-kernels = [krnl.KERNEL_GLOBAL, krnl.KERNEL_TILED, krnl.KERNEL_COALESCED]
+kernels = [krnl.KERNEL_GLOBAL, krnl.KERNEL_TILED, krnl.KERNEL_COALESCED, krnl.KERNEL_OVERLAPPED]
 
 
 # prepare meta-data
