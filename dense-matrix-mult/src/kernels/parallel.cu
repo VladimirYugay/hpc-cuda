@@ -184,7 +184,37 @@ void executeMatrixMultCoalesced(dim3 dimBlock, dim3 dimGrid, float *Ad, float *B
 __global__ void kernel_matrixMultCoalescedDym(const float *__restrict__ devA,
                                               const float *__restrict__ devB,
                                               float *__restrict__ devC, const size_t size) {
-  // TODO: complete function
+    const int TILE_SIZE = blockDim.x;
+    int tx = threadIdx.x;
+    int ty = threadIdx.y; 
+    int bx = blockIdx.x;
+    int by = blockIdx.y; 
+
+    int col = bx * blockDim.x + tx;
+    int row = by * blockDim.y + ty;
+
+    // col-major format
+    extern __shared__ float sharedMem[];
+    float* sharedA = &sharedMem[0];
+    float* sharedB = &sharedMem[TILE_SIZE * TILE_SIZE];
+
+    if ((col < size) && (row < size)) {
+
+        float dotProduct = 0;
+
+        for (int bid = 0; bid < size / TILE_SIZE; bid++) {
+            
+            sharedA[ty * TILE_SIZE + tx] = devA[bid * size * TILE_SIZE + ty * size + by * TILE_SIZE + tx];
+            sharedB[ty * TILE_SIZE + tx] = devB[bx * size * TILE_SIZE + ty * size + bid * TILE_SIZE + tx];
+            __syncthreads();
+
+            for (int i = 0; i < TILE_SIZE; i++) {
+                dotProduct += sharedA[i * TILE_SIZE + ty] * sharedB[tx * TILE_SIZE + i];
+            }
+            __syncthreads();
+        }
+        devC[col * size + row] += dotProduct;  
+    }
 }
 
 
@@ -238,6 +268,7 @@ __global__ void kernel_matrixMultOverlapped(const float *__restrict__ devA,
         }
 
         int bid = size / TILE_SIZE - 1;
+
         sharedA[ty][tx] = devA[bid * size * TILE_SIZE + ty * size + by * TILE_SIZE + tx];
         sharedB[ty][tx] = devB[bx * size * TILE_SIZE + ty * size + bid * TILE_SIZE + tx];
         __syncthreads();
