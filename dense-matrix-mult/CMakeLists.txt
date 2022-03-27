@@ -70,6 +70,7 @@ if (pybind11_FOUND)
     target_link_libraries(dense_hpc_aa PRIVATE core)
 
     configure_file(binding/runner.py ${CMAKE_CURRENT_BINARY_DIR}/runner.py COPYONLY)
+    configure_file(binding/intensity.py ${CMAKE_CURRENT_BINARY_DIR}/intensity.py COPYONLY)
 else()
     message(STATUS "Compiling without PYBINDING")
 endif()

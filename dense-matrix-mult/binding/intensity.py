@@ -17,6 +17,15 @@ def compute_glops(time, config):
     time /= 1000.0
     return operations / (time * 1024 * 1024 * 1024)
 
+def compute_intensity(config):
+    n = config.matrix_size
+    b = config.tile_size
+    if config.kernel_type == krnl.KERNEL_GLOBAL:
+        return (2 * n + 1) / ((2 * n + 1) * 4)
+    elif config.kernel_type == krnl.KERNEL_TILED:
+        return (2 * n + 1) / ((n / b * 2 + 1) * 4)
+
+
 
 # base configuration
 config = interface.Configuration()
@@ -53,33 +62,11 @@ tile_to_colors = {4: color_array[0], 8: color_array[1], 16: color_array[2], 32: 
 
 
 # generate sizes that we're going to test
-sizes = [2**i for i in range(5, 11)]
-
-
-# collect performance data for cublas
-with_cublas = False
-if with_cublas:
-    with Bar('CUBLAS...    ', max=len(sizes)) as bar:
-        cublas = []
-        for size in sizes:
-            config.matrix_size = size
-            config.kernel_type = krnl.KERNEL_CUBLAS
-
-            time = interface.run(config)
-            cublas.append(compute_glops(time, config))
-            bar.next()
-
-        ax.plot(sizes,
-                cublas,
-                color='green',
-                marker=markers[krnl.KERNEL_CUBLAS],
-                linestyle='solid',
-                label=interface.kernel_type_to_str(config.kernel_type))
-
+sizes = [2**i for i in range(5, 7)]
 
 tiles = [2**i for i in range(2, 6)]
-# kernels = [krnl.KERNEL_GLOBAL, krnl.KERNEL_TILED, krnl.KERNEL_COALESCED, krnl.KERNEL_COALESCED_DYM, krnl.KERNEL_OVERLAPPED]
 kernels = [krnl.KERNEL_GLOBAL, krnl.KERNEL_TILED]
+combos = [(krnl, tile) for tile in tiles for krnl in kernels]
 
 
 # prepare meta-data
@@ -89,40 +76,55 @@ db.attrs['num_repeats'] = config.num_repeats
 db.create_dataset("matrix_sizes", data=sizes)
 
 
-max = len(tiles) * len(kernels) * len(sizes)
+max = len(combos) * len(sizes)
 with Bar('Processing...', max=max) as bar:
-    for kernel in kernels:
+
+    for kernel, tile in combos:
         kernel_name = interface.kernel_type_to_str(kernel)
-        kernel_group = db.create_group(f'{kernel_name}')
-        for tile in tiles:
-            performance = []
-            for size in sizes:
-                config.matrix_size = size
-                config.kernel_type = kernel
-                config.tile_size = tile
+        kernel_group = db.create_group(f'{kernel_name + str(tile)}')
+        performance = []
+        intensity = [] 
+        for size in sizes:
+            config.matrix_size = size
+            config.kernel_type = kernel
+            config.tile_size = tile
 
-                time = interface.run(config)
-                performance.append(compute_glops(time, config))
-                bar.next()
+            time = interface.run(config)
+            performance.append(compute_glops(time, config))
+            intensity.append(compute_intensity(config))
+            bar.next()
+        
+        print(intensity)
+        print(performance)
+        description = f'{kernel_name} - tile={tile}'
+        ax.scatter(intensity,
+                performance,
+                color=tile_to_colors[tile],
+                marker=markers[config.kernel_type],
+                linestyle='None',
+                label=description)        
 
-            description = f'{kernel_name} - tile={tile}'
-            ax.plot(sizes,
-                    performance,
-                    color=tile_to_colors[tile],
-                    marker=markers[config.kernel_type],
-                    linestyle='None',
-                    label=description)
-
-            kernel_group.create_dataset(f'{tile}', data=performance)
+        kernel_group.create_dataset(f'{kernel_name + str(tile)}', data=performance)            
 
 
-ax.set_xlabel('Matrix Size')
-ax.set_xscale('log', basex=2)
-ax.xaxis.set_major_formatter(ScalarFormatter())
-ax.set_xticks(sizes)
+
+# specific for the machine 
+PEAK_PERF = 201  # GFLOPS
+BANDWIDTH = 336  # GB/s
+intensities = [i * 0.01 for i in range(1600)]
+roofline = [min(intensity * BANDWIDTH, PEAK_PERF) for intensity in intensities]
+
+ax.plot(intensities, roofline, c='black')
+
+
+
+ax.set_xlabel('Intensity')
+# ax.set_xscale('log', basex=2)
+# ax.xaxis.set_major_formatter(ScalarFormatter())
+ax.set_xticks(intensities[::100])
 
 
 ax.set_ylabel('Performance, GFLOP/s')
 legend = ax.legend(loc='upper left', bbox_to_anchor=(0, -0.65, 1, 0.5), mode = "expand", frameon=False, ncol=3)
 ax.set_title(interface.get_device_name())
-plt.savefig('./performance.png', bbox_extra_artists=(legend,), bbox_inches='tight', dpi=400)
+plt.savefig('./roofline.png', bbox_extra_artists=(legend,), bbox_inches='tight', dpi=400)
