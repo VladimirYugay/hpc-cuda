@@ -100,7 +100,14 @@ size_t get1DGrid(size_t blockSize, size_t size) {
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_csrMatVecMult(float *y, const DevCsrMatrix matrix, const float *x) {
-  // TODO: T3.2a implement mat-vec multiplication
+    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row < matrix.numRows){
+        float dotProduct = 0.f;
+        for (int i = matrix.start[row]; i < matrix.start[row + 1]; i++){
+            dotProduct += matrix.values[i] * x[matrix.indices[i]];
+        }
+        y[row] = dotProduct;
+    }
 }
 
 
@@ -116,9 +123,8 @@ void launch_csrMatVecMult(float *y, const DevCsrMatrix matrix, const float *x,
     switch (mode) {
         case ExecutionMode::PAGERANK: {
             // #threads = #rows (= N)
-            // TODO: T3.2a define grid/block size
-            dim3 grid(1, 1, 1);
-            dim3 block(1, 1, 1);
+            dim3 grid(get1DGrid(TILE_SIZE, matrix.numRows), 1, 1);
+            dim3 block(TILE_SIZE, 1, 1);
             kernel_csrMatVecMult<<<grid, block>>>(y, matrix, x);
             break;
         }
