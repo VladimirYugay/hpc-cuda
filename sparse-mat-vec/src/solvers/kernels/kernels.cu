@@ -113,7 +113,32 @@ __global__ void kernel_csrMatVecMult(float *y, const DevCsrMatrix matrix, const 
 
 template <int TILE_SIZE>
 __global__ void kernel_csrMatVecMult_vectorized(float *y, const DevCsrMatrix matrix, const float *x) {
-  // TODO: H3.1 implement mat-vec multiplication
+    
+    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    int wardId = row / WARP_SIZE;
+    int localId = wardId % WARP_SIZE;
+    __shared__ float warpValues[TILE_SIZE];
+    
+    if (row < matrix.numRows){
+        for (int i = matrix.start[row] + localId; i < matrix.start[row + 1]; i += WARP_SIZE){
+            warpValues[threadIdx.x] += matrix.values[i] * x[matrix.indices[i]];
+        }
+        __syncthreads();
+
+        // fan in all the values to the first warp
+        for (int offset = 1; offset < blockDim.x; offset *= 2){
+            if (localId % (2 * offset) == 0){
+                warpValues[localId] += warpValues[localId + offset];
+            }
+            __syncthreads();
+        }
+
+        if (localId == 0){
+            y[row] += warpValues[row];
+        }
+    } 
+
+
 }
 
 
@@ -129,9 +154,9 @@ void launch_csrMatVecMult(float *y, const DevCsrMatrix matrix, const float *x,
             break;
         }
         case ExecutionMode::PAGERANK_VECTORIZED: {
-          // TODO: H3.1 define grid/block size
-            dim3 grid(1, 1, 1);
-            dim3 block(1, 1, 1);
+            // # each row is processed by a single thread in parallel
+            dim3 grid(get1DGrid(TILE_SIZE, matrix.numRows * WARP_SIZE), 1, 1);
+            dim3 block(TILE_SIZE, 1, 1);
             kernel_csrMatVecMult_vectorized<TILE_SIZE><<<grid, block>>>(y, matrix, x);
             break;
         }
