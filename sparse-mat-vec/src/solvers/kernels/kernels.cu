@@ -172,14 +172,23 @@ void launch_csrMatVecMult(float *y, const DevCsrMatrix matrix, const float *x,
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_ellMatVecMult(float *y, const DevEllMatrix matrix, const float *x) {
-  // TODO: T4.1a
+    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row < matrix.numRows){
+        float dotProduct = 0.f;
+        for (int i = 0; i < matrix.numColsPerRow; i++){
+            int idx = i * matrix.numRows + row;
+            dotProduct += x[matrix.indices[idx]] * matrix.values[idx];
+        }
+        y[row] = dotProduct;
+    }
 }
 
 
 void launch_ellMatVecMult(float *y, const DevEllMatrix matrix, const float *x) {
-  // TODO: T4.1a
-    dim3 grid(1, 1, 1);
-    dim3 block(1, 1, 1);
+    // thread per row 
+    constexpr int TILE_SIZE = 64;
+    dim3 grid(get1DGrid(TILE_SIZE, matrix.numRows), 1, 1);
+    dim3 block(TILE_SIZE, 1, 1);
 
     kernel_ellMatVecMult<<<grid, block>>>(y, matrix, x);
     CHECK_ERR;
