@@ -151,8 +151,18 @@ __global__ void kernel_gpuSimple(float *swapField, const float *dataField, const
     long int idy = threadIdx.y + blockIdx.y * blockDim.y;
 
     if ((idx < (size1D - 2)) && (idy < (size1D - 2))) {
-        // TODO: complete this kernel. Update swapField (you can use getLinearId function)
+        float value = dataField[getLinearId(idx, idy, size1D)];
+        float t1 = 4.0f * (dataField[getLinearId(idx - 1, idy, size1D)] +
+                                    dataField[getLinearId(idx + 1, idy, size1D)] +
+                                    dataField[getLinearId(idx, idy - 1, size1D)] +
+                                    dataField[getLinearId(idx, idy + 1, size1D)]);
 
+        float t2 = dataField[getLinearId(idx + 1, idy + 1, size1D)] +
+                      dataField[getLinearId(idx - 1, idy + 1, size1D)] +
+                      dataField[getLinearId(idx + 1, idy - 1, size1D)] +
+                      dataField[getLinearId(idx - 1, idy - 1, size1D)];    
+        
+        swapField[getLinearId(idx, idy, size1D)] = value + (params.factor * (t1 + t2 - 20.0f * value) * params.invDhSquare) / 6.0f;
     }
 }
 
@@ -161,8 +171,8 @@ void launch_gpuSimple(float *swapField, const float *dataField, const Settings &
                       const Params &params) {
     dim3 block(settings.blockSizeX, settings.blockSizeY, 1);
 
-    // TODO: find grid/block distribution
-    dim3 grid(1, 1, 1);
+    dim3 grid(get1DGrid(block.x, settings.num1dGridPoints - 2),
+              get1DGrid(block.y, settings.num1dGridPoints - 2), 1);
 
     kernel_gpuSimple<<<grid, block>>>(swapField, dataField, params, settings.num1dGridPoints);
     CHECK_ERR;
