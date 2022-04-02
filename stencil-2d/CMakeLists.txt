@@ -3,8 +3,8 @@ project(stencil)
 
 set(CMAKE_CXX_STANDARD 11)
 
-set(SM "sm_86" CACHE STRING "model of Nvidia Streaming Multiprocessor")
-set(SM_OPTIONS "sm_50" "sm_60" "sm_70" "sm_86")
+set(SM "sm_60" CACHE STRING "model of Nvidia Streaming Multiprocessor")
+set(SM_OPTIONS "sm_20" "sm_30" "sm_50" "sm_60" "sm_70")
 set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 
 
