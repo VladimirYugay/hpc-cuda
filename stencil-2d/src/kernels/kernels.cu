@@ -194,13 +194,33 @@ __global__ void kernel_gpuWithShrMem(float *swapField, const float *dataField, c
     // load a patch (blockDim.x + 2) x (blockDim.y + 2) to the shared memory
     extern __shared__ float patch[];
     if ((idx < size1D) && (idy < size1D)) {
-        // TODO: load a patch from global to shared memory
+        patch[getShrLinearId(threadIdx.x, threadIdx.y, blockDim.x)] =
+            dataField[getRealLinearId(idx, idy, size1D)];
     }
     __syncthreads();
 
     const size_t realLinearId = getRealLinearId(idx, idy, size1D);
-    const float selfValue = patch[getShrLinearId(threadIdx.x, threadIdx.y, blockDim.x)];
-    // TODO: complete this kernel. Update swapField (you can use getLinearId function)
+    const float value = patch[getShrLinearId(threadIdx.x, threadIdx.y, blockDim.x)];
+    if ((idx < (size1D - 1)) && (idy < (size1D - 1))) {
+
+        if ((threadIdx.x > 0) && (threadIdx.y > 0) && (threadIdx.x < (blockDim.x - 1)) &&
+            (threadIdx.y < (blockDim.y - 1))) {
+
+            float t1 = 4.0f * (patch[getShrLinearId(threadIdx.x - 1, threadIdx.y, blockDim.x)] +
+                                  patch[getShrLinearId(threadIdx.x + 1, threadIdx.y, blockDim.x)] +
+                                  patch[getShrLinearId(threadIdx.x, threadIdx.y - 1, blockDim.x)] +
+                                  patch[getShrLinearId(threadIdx.x, threadIdx.y + 1, blockDim.x)]);
+
+            float t2 = patch[getShrLinearId(threadIdx.x + 1, threadIdx.y + 1, blockDim.x)] +
+                          patch[getShrLinearId(threadIdx.x - 1, threadIdx.y + 1, blockDim.x)] +
+                          patch[getShrLinearId(threadIdx.x + 1, threadIdx.y - 1, blockDim.x)] +
+                          patch[getShrLinearId(threadIdx.x - 1, threadIdx.y - 1, blockDim.x)];
+
+            swapField[realLinearId] =
+                value +
+                (params.factor * (t1 + t2 - 20.0f * value) * params.invDhSquare) / 6.0f;
+        }
+    }
 }
 
 
@@ -208,11 +228,10 @@ void launch_gpuWithShrMem(float *swapField, const float *dataField, const Settin
                           const Params &params) {
 
     dim3 block(settings.blockSizeX, settings.blockSizeY, 1);
-    // TODO: find grid/block distribution
-    dim3 grid(1, 1, 1);
+    dim3 grid(get1DGrid(block.x - 2, settings.num1dGridPoints),
+              get1DGrid(block.y - 2, settings.num1dGridPoints), 1);
 
-    // TODO: compute the amount of shared memory
-    const size_t shrMemSize = 1;
+    const size_t shrMemSize = block.x * block.y * sizeof(float);
     kernel_gpuWithShrMem<<<grid, block, shrMemSize>>>(swapField, dataField, params,
                                                       settings.num1dGridPoints);
     CHECK_ERR;
