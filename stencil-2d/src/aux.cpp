@@ -31,5 +31,6 @@ std::string modeToString(ExecutionMode mode) {
 
 
 size_t getNearestPow2Number(size_t number) {
-    return pow(2, ceil(logb(number)));
+    auto power = std::ceil(std::log2(static_cast<double>(number)));
+    return std::pow(2, power);
 }

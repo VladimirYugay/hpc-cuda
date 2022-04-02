@@ -86,9 +86,9 @@ void launch_computeErr(float *errVector, const float *vector1, const float *vect
 
 //--------------------------------------------------------------------------------------------------
 Reducer::Reducer(size_t size) : realVectorSize(size) {
-    // TODO: implement getNearestPow2Number function (see aux.cpp)
     adjustedSize = getNearestPow2Number(realVectorSize);
-    // TODO: allocate enough memory for vectorValues and swapVectorValues
+    cudaMalloc(&vectorValues, realVectorSize * sizeof(float));
+    cudaMalloc(&swapVectorValues, adjustedSize * sizeof(float));
 }
 
 Reducer::~Reducer() {
@@ -105,8 +105,7 @@ void __global__ kernel_reduceMax(float *to, const float *from, const size_t size
 
     constexpr unsigned int fullMask = 0xffffffff;
     for (int offset = 16; offset > 0; offset /= 2) {
-        // TODO:  compute value. Consider: __shfl_???_sync(fullMask, ???, ???));
-        value = 0;
+        value = fmax(value, __shfl_down_sync(fullMask, value, offset));
     }
 
     if (threadIdx.x == 0) {
@@ -116,16 +115,22 @@ void __global__ kernel_reduceMax(float *to, const float *from, const size_t size
 
 
 float Reducer::reduceMax(const float *values) {
-    // TODO: copy data from values to vectorValues. Use cudaMemcpy
+    cudaMemcpy(vectorValues, values, realVectorSize * sizeof(float), cudaMemcpyHostToDevice);
 
     constexpr int WARP_SIZE = 32;
     dim3 block(WARP_SIZE, 1, 1);
 
-    // TODO: adjust grid size
-    dim3 grid(1, 1, 1);
-
+    dim3 grid(get1DGrid(WARP_SIZE, adjustedSize), 1, 1);
     size_t swapCounter = 0;
-    // TODO: implement grid level reduction
+    
+    kernel_reduceMax<<<grid, block>>>(swapVectorValues, vectorValues, realVectorSize);
+    std::swap(vectorValues, swapVectorValues);
+    swapCounter++;
+    for (int reducedSize = adjustedSize / WARP_SIZE; reducedSize > 0; reducedSize /= WARP_SIZE){
+        kernel_reduceMax<<<grid, block>>>(swapVectorValues, vectorValues, reducedSize);
+        std::swap(vectorValues, swapVectorValues);
+        swapCounter++;
+    }
 
     float results{};
     if ((swapCounter % 2) == 0) {
