@@ -31,6 +31,5 @@ std::string modeToString(ExecutionMode mode) {
 
 
 size_t getNearestPow2Number(size_t number) {
-    // TODO: complete this function. Return the nearest power 2 number
-    return 1;
+    return pow(2, ceil(logb(number)));
 }
