@@ -197,15 +197,26 @@ void launch_ellMatVecMult(float *y, const DevEllMatrix matrix, const float *x) {
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_bandMatVecMult(float *y, const DevBandMatrix matrix, const float *x) {
-  // TODO: H5.1
+    int row = threadIdx.x + blockIdx.x * blockDim.x;
+    if (row < matrix.numRows){
+        float dotProduct = 0.f;
+        for (int diag = 0; diag < (2 * matrix.halfSize + 1); diag++){
+            int idx = diag * matrix.numRows + row; 
+            int offset = row - matrix.halfSize + diag;
+            if (offset >= 0){
+                dotProduct += matrix.values[idx] * x[offset];
+            }
+        }
+        y[row] = dotProduct;
+    }
 }
 
 
 void launch_bandMatVecMult(float *y, const DevBandMatrix matrix, const float *x) {
-    // TODO: H5.1
     //#threads = #rows (= N)
-    dim3 grid(1, 1, 1);
-    dim3 block(1, 1, 1);
+    constexpr int TILE_SIZE = 32;
+    dim3 grid(get1DGrid(TILE_SIZE, matrix.numRows), 1, 1);
+    dim3 block(TILE_SIZE, 1, 1);
 
     kernel_bandMatVecMult<<<grid, block>>>(y, matrix, x);
     CHECK_ERR;
